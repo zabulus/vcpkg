@@ -223,7 +223,13 @@ std::vector<std::string> vcpkg::get_unmet_package_dependencies(const vcpkg_paths
         {
         }
         Checks::check_exit(pghs.size() == 1, "Invalid control file at %s", packages_dir_control_file_path.string());
-        return BinaryParagraph(pghs[0]).depends;
+
+        std::vector<std::string> unversioned_deps;
+        for (auto&& dep : BinaryParagraph(pghs[0]).depends)
+        {
+            unversioned_deps.push_back(dep.name);
+        }
+        return unversioned_deps;
     }
 
     return get_unmet_package_build_dependencies(paths, spec, status_db);
@@ -258,7 +264,7 @@ void vcpkg::install_package(const vcpkg_paths& paths, const BinaryParagraph& bin
     spgh.state = install_state_t::half_installed;
     for (auto&& dep : spgh.package.depends)
     {
-        if (status_db.find_installed(dep, spgh.package.spec.target_triplet()) == status_db.end())
+        if (status_db.find_installed(dep.name, spgh.package.spec.target_triplet()) == status_db.end())
         {
             Checks::unreachable();
         }
@@ -303,7 +309,7 @@ static deinstall_plan deinstall_package_plan(
 
         const auto& deps = inst_pkg->package.depends;
 
-        if (std::find(deps.begin(), deps.end(), pkg.spec.name()) != deps.end())
+        if (std::find_if(deps.begin(), deps.end(), [&](const auto& dep) { return dep.name == pkg.spec.name(); }) != deps.end())
         {
             dependencies_out.push_back(inst_pkg.get());
         }

@@ -56,7 +56,7 @@ namespace vcpkg
         Checks::check_exit(multi_arch == "same", "Multi-Arch must be 'same' but was %s", multi_arch);
 
         std::string deps = details::remove_optional_field(&fields, BinaryParagraphOptionalField::DEPENDS);
-        this->depends = parse_depends(deps);
+        this->depends = expand_versioned_dependencies(parse_depends(deps));
     }
 
     BinaryParagraph::BinaryParagraph(const SourceParagraph& spgh, const triplet& target_triplet)
@@ -65,7 +65,7 @@ namespace vcpkg
         this->version = spgh.version;
         this->description = spgh.description;
         this->maintainer = spgh.maintainer;
-        this->depends = filter_dependencies(spgh.depends, target_triplet);
+        this->depends = expand_versioned_dependencies(filter_dependencies(spgh.depends, target_triplet));
     }
 
     std::string BinaryParagraph::displayname() const
@@ -108,4 +108,41 @@ namespace vcpkg
             os << "Description: " << p.description << "\n";
         return os;
     }
+
+    std::ostream& operator<<(std::ostream& os, const version_dependency& p)
+    {
+        os << p.name;
+        if (!p.version.empty())
+            os << " (= " << p.version << ')';
+        return os;
+    }
+
+    std::vector<version_dependency> expand_versioned_dependencies(const std::vector<std::string>& depends)
+    {
+        auto convert = [&](const std::string& depend_string) -> version_dependency {
+            auto pos = depend_string.find(' ');
+            if (pos == std::string::npos)
+                return{ depend_string, "" };
+            // expect of the form "\w+ \(= [\w\d\.-]+\)"
+            version_dependency dep;
+            dep.name = depend_string.substr(0, pos);
+            if (strncmp(depend_string.c_str() + pos, " (= ", 4) != 0 || depend_string[depend_string.size() - 1] != ')')
+            {
+                // Error, but for now just slurp the entire string.
+                return{ depend_string, "" };
+            }
+            dep.version = depend_string.substr(pos + 4, depend_string.size() - pos - 5);
+            return dep;
+        };
+
+        std::vector<version_dependency> ret;
+
+        for (auto&& depend_string : depends)
+        {
+            ret.push_back(convert(depend_string));
+        }
+
+        return ret;
+    }
+
 }

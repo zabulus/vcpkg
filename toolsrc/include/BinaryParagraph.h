@@ -7,6 +7,12 @@
 
 namespace vcpkg
 {
+    struct version_dependency
+    {
+        std::string name;
+        std::string version;
+    };
+
     struct BinaryParagraph
     {
         BinaryParagraph();
@@ -23,8 +29,12 @@ namespace vcpkg
         std::string version;
         std::string description;
         std::string maintainer;
-        std::vector<std::string> depends;
+        std::string triplet_hash;
+        std::vector<version_dependency> depends;
     };
 
+    std::vector<version_dependency> expand_versioned_dependencies(const std::vector<std::string>& depends);
+
     std::ostream& operator<<(std::ostream& os, const BinaryParagraph& pgh);
+    std::ostream& operator<<(std::ostream& os, const version_dependency& pgh);
 }

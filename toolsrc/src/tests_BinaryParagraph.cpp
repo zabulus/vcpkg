@@ -45,7 +45,7 @@ public:
         Assert::AreEqual("m", pgh.maintainer.c_str());
         Assert::AreEqual("d", pgh.description.c_str());
         Assert::AreEqual(size_t(1), pgh.depends.size());
-        Assert::AreEqual("bd", pgh.depends[0].c_str());
+        Assert::AreEqual("bd", pgh.depends[0].name.c_str());
     }
 
     TEST_METHOD(BinaryParagraph_Three_Depends)
@@ -59,9 +59,9 @@ public:
         });
 
         Assert::AreEqual(size_t(3), pgh.depends.size());
-        Assert::AreEqual("a", pgh.depends[0].c_str());
-        Assert::AreEqual("b", pgh.depends[1].c_str());
-        Assert::AreEqual("c", pgh.depends[2].c_str());
+        Assert::AreEqual("a", pgh.depends[0].name.c_str());
+        Assert::AreEqual("b", pgh.depends[1].name.c_str());
+        Assert::AreEqual("c", pgh.depends[2].name.c_str());
     }
 
     TEST_METHOD(BinaryParagraph_serialize_min)
@@ -121,6 +121,38 @@ public:
         auto pghs = vcpkg::parse_paragraphs(ss.str());
         Assert::AreEqual(size_t(1), pghs.size());
         Assert::AreEqual("a, b, c", pghs[0]["Depends"].c_str());
+    }
+
+    TEST_METHOD(BinaryParagraph_serialize_version_deps)
+    {
+        std::stringstream ss;
+        vcpkg::BinaryParagraph pgh({
+            { "Package", "zlib" },
+            { "Version", "1.2.8" },
+            { "Architecture", "x86-windows" },
+            { "Multi-Arch", "same" },
+            { "Depends", "a (= 1-a5eff732), c (= 2-5.2)" },
+        });
+        ss << pgh;
+        auto pghs = vcpkg::parse_paragraphs(ss.str());
+        Assert::AreEqual(size_t(1), pghs.size());
+        Assert::AreEqual("a (= 1-a5eff732), c (= 2-5.2)", pghs[0]["Depends"].c_str());
+    }
+
+    TEST_METHOD(BinaryParagraph_parse_version_deps)
+    {
+        vcpkg::BinaryParagraph pgh({
+            { "Package", "zlib" },
+            { "Version", "1.2.8" },
+            { "Architecture", "x86-windows" },
+            { "Multi-Arch", "same" },
+            { "Depends", "a (= 1-a5eff732), c (= 2-5.2)" },
+        });
+        Assert::AreEqual(size_t(2), pgh.depends.size());
+        Assert::AreEqual("a", pgh.depends[0].name.c_str());
+        Assert::AreEqual("1-a5eff732", pgh.depends[0].version.c_str());
+        Assert::AreEqual("c", pgh.depends[1].name.c_str());
+        Assert::AreEqual("2-5.2", pgh.depends[1].version.c_str());
     }
 };
 
