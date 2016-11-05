@@ -19,8 +19,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\tests.cpp" />
+    <ClCompile Include="..\src\tests_BinaryParagraph.cpp" />
     <ClCompile Include="..\src\tests_dependencies.cpp" />
-    <ClCompile Include="..\src\tests_paragraph.cpp" />
+    <ClCompile Include="..\src\tests_SourceParagraph.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\vcpkgcommon\vcpkgcommon.vcxproj">
