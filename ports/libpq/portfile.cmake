@@ -14,7 +14,14 @@ vcpkg_download_distfile(ARCHIVE
     SHA512 f27af67f9a96f6327150330bf091a803e10eabbac4e488cf5e4d72907e2eb1dbde7282fe0b89fd75711fd8bdcdb3688b5a9eac1e4d6871f4e8681c9c8b0e7c45
 )
 vcpkg_extract_source_archive(${ARCHIVE})
+
+vcpkg_apply_patches(
+    SOURCE_PATH ${SOURCE_PATH}
+    PATCHES ${CMAKE_CURRENT_LIST_DIR}/0001-fix-uwp-build.patch
+)
+
 file(COPY ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
+
 vcpkg_configure_cmake(
     SOURCE_PATH ${SOURCE_PATH}
     # OPTIONS -DUSE_THIS_IN_ALL_BUILDS=1 -DUSE_THIS_TOO=2

@@ -1,0 +1,189 @@
+diff --git "a/src/include/port/win32.h" "b/src/include/port/win32.h"
+index 4453c903..7cc155eb 100644
+--- "a/src/include/port/win32.h"
++++ "b/src/include/port/win32.h"
+@@ -33,7 +33,9 @@
+  * we want a switch to disable it sometime in the future.
+  */
+ #ifndef __BORLANDC__
+-#define ENABLE_SSPI 1
++#   if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP | WINAPI_PARTITION_SYSTEM)
++#       define ENABLE_SSPI 1
++#   endif
+ #endif
+ 
+ /* undefine and redefine after #include */
+diff --git "a/src/interfaces/libpq/fe-auth.c" "b/src/interfaces/libpq/fe-auth.c"
+index d2372621..6c7cab43 100644
+--- "a/src/interfaces/libpq/fe-auth.c"
++++ "b/src/interfaces/libpq/fe-auth.c"
+@@ -747,10 +747,15 @@ pg_fe_getauthname(PQExpBuffer errorMessage)
+ 	 */
+ 	pglock_thread();
+ 
+-#ifdef WIN32
++#ifdef WIN32 
++#   if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+ 	if (GetUserName(username, &namesize))
+ 		name = username;
+-	else if (errorMessage)
++	else
++#   else
++	SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
++#   endif
++		if (errorMessage)
+ 		printfPQExpBuffer(errorMessage,
+ 				 libpq_gettext("user name lookup failure: error code %lu\n"),
+ 						  GetLastError());
+diff --git "a/src/interfaces/libpq/fe-connect.c" "b/src/interfaces/libpq/fe-connect.c"
+index 76b61bdc..f5f49756 100644
+--- "a/src/interfaces/libpq/fe-connect.c"
++++ "b/src/interfaces/libpq/fe-connect.c"
+@@ -5890,7 +5890,7 @@ pqGetHomeDirectory(char *buf, int bufsize)
+ 		return false;
+ 	strlcpy(buf, pwd->pw_dir, bufsize);
+ 	return true;
+-#else
++#elif WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+ 	char		tmppath[MAX_PATH];
+ 
+ 	ZeroMemory(tmppath, sizeof(tmppath));
+@@ -5898,6 +5898,8 @@ pqGetHomeDirectory(char *buf, int bufsize)
+ 		return false;
+ 	snprintf(buf, bufsize, "%s/postgresql", tmppath);
+ 	return true;
++#else
++	return false;
+ #endif
+ }
+ 
+diff --git "a/src/interfaces/libpq/win32.c" "b/src/interfaces/libpq/win32.c"
+index 06a39211..54b40768 100644
+--- "a/src/interfaces/libpq/win32.c"
++++ "b/src/interfaces/libpq/win32.c"
+@@ -284,7 +284,7 @@ winsock_strerror(int err, char *strerrbuf, size_t buflen)
+ 	int			offs,
+ 				i;
+ 	int			success = LookupWSErrorMessage(err, strerrbuf);
+-
++#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+ 	for (i = 0; !success && i < DLLS_SIZE; i++)
+ 	{
+ 
+@@ -312,6 +312,7 @@ winsock_strerror(int err, char *strerrbuf, size_t buflen)
+ 									 0
+ 			);
+ 	}
++#endif
+ 
+ 	if (!success)
+ 		sprintf(strerrbuf, libpq_gettext("unrecognized socket error: 0x%08X/%d"), err, err);
+diff --git "a/src/port/dirmod.c" "b/src/port/dirmod.c"
+index fe2b815f..3deb9a24 100644
+--- "a/src/port/dirmod.c"
++++ "b/src/port/dirmod.c"
+@@ -158,6 +158,7 @@ typedef struct
+ int
+ pgsymlink(const char *oldpath, const char *newpath)
+ {
++#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+ 	HANDLE		dirhandle;
+ 	DWORD		len;
+ 	char		buffer[MAX_PATH * sizeof(WCHAR) + offsetof(REPARSE_JUNCTION_DATA_BUFFER, PathBuffer)];
+@@ -231,6 +232,10 @@ pgsymlink(const char *oldpath, const char *newpath)
+ 	CloseHandle(dirhandle);
+ 
+ 	return 0;
++#else
++	SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
++	return -1;
++#endif
+ }
+ 
+ /*
+@@ -239,6 +244,7 @@ pgsymlink(const char *oldpath, const char *newpath)
+ int
+ pgreadlink(const char *path, char *buf, size_t size)
+ {
++#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+ 	DWORD		attr;
+ 	HANDLE		h;
+ 	char		buffer[MAX_PATH * sizeof(WCHAR) + offsetof(REPARSE_JUNCTION_DATA_BUFFER, PathBuffer)];
+@@ -334,6 +340,10 @@ pgreadlink(const char *path, char *buf, size_t size)
+ 		r -= 4;
+ 	}
+ 	return r;
++#else
++	errno = EPERM;
++	return -1;
++#endif
+ }
+ 
+ /*
+diff --git "a/src/port/getaddrinfo.c" "b/src/port/getaddrinfo.c"
+index 90c1b877..6c88a214 100644
+--- "a/src/port/getaddrinfo.c"
++++ "b/src/port/getaddrinfo.c"
+@@ -33,7 +33,7 @@
+ #include "libpq/pqcomm.h"		/* needed for struct sockaddr_storage */
+ 
+ 
+-#ifdef WIN32
++#if defined(WIN32) && !defined(HAVE_GETADDRINFO)
+ /*
+  * The native routines may or may not exist on the Windows platform we are on,
+  * so we dynamically look up the routines, and call them via function pointers.
+@@ -124,7 +124,7 @@ haveNativeWindowsIPv6routines(void)
+ }
+ #endif
+ 
+-
++#if !defined(HAVE_GETADDRINFO)
+ /*
+  * get address info for ipv4 sockets.
+  *
+@@ -285,6 +285,7 @@ freeaddrinfo(struct addrinfo * res)
+ 	}
+ }
+ 
++#endif
+ 
+ const char *
+ gai_strerror(int errcode)
+@@ -346,6 +347,7 @@ gai_strerror(int errcode)
+ #endif   /* HAVE_HSTRERROR */
+ }
+ 
++#if !defined(HAVE_GETADDRINFO)
+ /*
+  * Convert an ipv4 address to a hostname.
+  *
+@@ -410,3 +412,5 @@ getnameinfo(const struct sockaddr * sa, int salen,
+ 
+ 	return 0;
+ }
++
++#endif
+\ No newline at end of file
+diff --git "a/src/port/open.c" "b/src/port/open.c"
+index 717375dd..1044835a 100644
+--- "a/src/port/open.c"
++++ "b/src/port/open.c"
+@@ -61,6 +61,7 @@ openFlagsToCreateFileFlags(int openFlags)
+ int
+ pgwin32_open(const char *fileName, int fileFlags,...)
+ {
++#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+ 	int			fd;
+ 	HANDLE		h = INVALID_HANDLE_VALUE;
+ 	SECURITY_ATTRIBUTES sa;
+@@ -134,6 +135,9 @@ pgwin32_open(const char *fileName, int fileFlags,...)
+ 	}
+ 
+ 	return fd;
++#else
++	return -1;
++#endif
+ }
+ 
+ FILE *
